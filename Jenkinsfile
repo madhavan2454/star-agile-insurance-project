@@ -44,14 +44,14 @@ pipeline {
           echo "Cleaning up local branches older than 7 days..."
           try {
             timeout(time: 2, unit: 'MINUTES') {
-              sh '''
-                set -e
-                CUTOFF=$(date -d "10 minutes ago" +%s)
-                git for-each-ref --format='%(refname:short) %(creatordate:unix)' refs/heads/ 
-                | awk -v c=$CUTOFF '$2 < c {print $1}' \
-                | grep -Ev '^ (main|master|develop|release/)' \
-                | xargs -r git branch -D
-              '''
+               sh '''
+            set -e
+            CUTOFF=$(date -d "30 minutes ago" +%s)
+            git for-each-ref --format='%(refname:short) %(creatordate:unix)' refs/heads/ \
+              | awk -v c=$CUTOFF '$2 < c {print $1}' \
+              | grep -Ev '^(main|master|develop|release/)' \
+              | xargs -r git branch -D
+          '''
             }
           } catch (err) {
             echo "Branch prune timed out or failed: ${err}"
