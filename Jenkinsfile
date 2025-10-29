@@ -1,7 +1,6 @@
 pipeline {
   agent any
 
-  // Run daily at midnight
   triggers {
     cron('H 0 * * *')
   }
@@ -14,10 +13,6 @@ pipeline {
   }
 
   stages {
-
-    /* ───────────────────────────────
-       1️⃣ Checkout - Clone and list branches
-    ─────────────────────────────── */
     stage('Checkout') {
       steps {
         echo "Cloning repository..."
@@ -72,9 +67,6 @@ pipeline {
       }
     }
 
-    /* ───────────────────────────────
-       4️⃣ Prune & Push - Cleanup + Push to Docker Hub
-    ─────────────────────────────── */
     stage('Prune and Push') {
       steps {
         script {
