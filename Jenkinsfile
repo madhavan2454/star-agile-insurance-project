@@ -21,7 +21,7 @@ pipeline {
     stage('Checkout') {
       steps {
         echo "Cloning repository..."
-        git branch: 'main', url: 'https://github.com/madhavan2454/star-agile-insurance-project.git'
+        checkout scm
 
         sh '''
           git fetch --all --prune
