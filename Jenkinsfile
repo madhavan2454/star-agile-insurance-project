@@ -41,12 +41,12 @@ pipeline {
     stage('Git Prune Ops') {
       steps {
         script {
-          echo "Cleaning up local branches older than 7 days..."
+          echo "Cleaning up local branches older than 2 minutes..."
           try {
             timeout(time: 2, unit: 'MINUTES') {
                sh '''
             set -e
-            CUTOFF=$(date -d "30 minutes ago" +%s)
+            CUTOFF=$(date -d "2 minutes ago" +%s)
             git for-each-ref --format='%(refname:short) %(creatordate:unix)' refs/heads/ \
               | awk -v c=$CUTOFF '$2 < c {print $1}' \
               | grep -Ev '^(main|master|develop|release/)' \
