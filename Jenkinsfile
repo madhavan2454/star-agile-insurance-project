@@ -70,10 +70,6 @@ pipeline {
     stage('Prune and Push') {
       steps {
         script {
-          // Clean up old images
-          
-
-          // Push to Docker Hub
             try {
                 sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
                 sh 'docker push ${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}'
@@ -102,13 +98,13 @@ pipeline {
       sh 'docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" || true'
     }
     success {
-      echo "✅ Pipeline completed successfully."
+      echo "Pipeline completed successfully."
     }
     aborted {
-      echo "⚠️  Pipeline aborted (timeout or push error)."
+      echo "Pipeline aborted (timeout or push error)."
     }
     failure {
-      echo "❌ Pipeline failed."
+      echo "Pipeline failed."
     }
   }
 }
