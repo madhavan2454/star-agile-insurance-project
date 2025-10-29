@@ -1,65 +1,122 @@
-node{
-    
-    def mavenHome
-    def mavenCMD
-    def docker
-    def dockerCMD
-    def tagName
-    
-    stage('prepare enviroment'){
-        echo 'initialize all the variables'
-        mavenHome = tool name: 'maven' , type: 'maven'
-        mavenCMD = "${mavenHome}/bin/mvn"
-        docker = tool name: 'docker' , type: 'org.jenkinsci.plugins.docker.commons.tools.DockerTool'
-        dockerCMD = "${docker}/bin/docker"
-        tagName="3.0"
+pipeline {
+  agent any
+
+  // Run daily at midnight
+  triggers {
+    cron('H 0 * * *')
+  }
+
+  environment {
+    IMAGE_NAME = "generic-app"
+    IMAGE_TAG  = "pruned-${BUILD_NUMBER}"
+    DOCKERHUB_CREDENTIALS = credentials('docker-cred')
+    DOCKER_USER = "madhavan2454"
+  }
+
+  stages {
+
+    /* ───────────────────────────────
+       1️⃣ Checkout - Clone and list branches
+    ─────────────────────────────── */
+    stage('Checkout') {
+      steps {
+        echo "Cloning repository..."
+        git branch: 'main', url: 'https://github.com/madhavan2454/star-agile-insurance-project.git'
+
+        sh '''
+          git fetch --all --prune
+          echo "Branches sorted by latest commit:"
+          git branch -a --sort=-committerdate || true
+        '''
+      }
     }
-    
-    stage('git code checkout'){
-        try{
-            echo 'checkout the code from git repository'
-            git 'https://github.com/shubhamkushwah123/star-agile-insurance-project.git'
+
+    stage('Run Test Cases'){
+      steps {
+        echo "Running test cases"
+        sh 'mvn clean package'
+      }
+    }
+
+    stage('Git Prune Ops') {
+      steps {
+        script {
+          echo "Cleaning up local branches older than 7 days..."
+          try {
+            timeout(time: 2, unit: 'MINUTES') {
+              sh '''
+                set -e
+                CUTOFF=$(date -d "10 minutes ago" +%s)
+                git for-each-ref --format='%(refname:short) %(creatordate:unix)' refs/heads/ 
+                | awk -v c=$CUTOFF '$2 < c {print $1}' \
+                | grep -Ev '^ (main|master|develop|release/)' \
+                | xargs -r git branch -D
+              '''
+            }
+          } catch (err) {
+            echo "Branch prune timed out or failed: ${err}"
+            currentBuild.result = 'ABORTED'
+            error("Stopping pipeline due to prune issue.")
+          }
         }
-        catch(Exception e){
-            echo 'Exception occured in Git Code Checkout Stage'
-            currentBuild.result = "FAILURE"
-            emailext body: '''Dear All,
-            The Jenkins job ${JOB_NAME} has been failed. Request you to please have a look at it immediately by clicking on the below link. 
-            ${BUILD_URL}''', subject: 'Job ${JOB_NAME} ${BUILD_NUMBER} is failed', to: 'shubham@gmail.com'
+      }
+    }
+
+    stage('Build Image') {
+      steps {
+        echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
+        sh '''
+          docker build -t ${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG} .
+          docker images ${IMAGE_NAME}
+        '''
+      }
+    }
+
+    /* ───────────────────────────────
+       4️⃣ Prune & Push - Cleanup + Push to Docker Hub
+    ─────────────────────────────── */
+    stage('Prune and Push') {
+      steps {
+        script {
+          // Clean up old images
+          
+
+          // Push to Docker Hub
+            try {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                sh 'docker push ${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}'
+            } catch (err) {
+              echo "Docker push failed: ${err}"
+              currentBuild.result = 'ABORTED'
+              error("Stopping pipeline due to push failure.")
+            }
+
+            try {
+            timeout(time: 2, unit: 'MINUTES') {
+              sh 'docker image prune -f || true'
+            }
+          } catch (err) {
+            echo "Docker prune timed out or failed."
+            currentBuild.result = 'ABORTED'
+            error("Stopping pipeline due to prune issue.")
+          }
         }
+      }
     }
-    
-    stage('Build the Application'){
-        echo "Cleaning... Compiling...Testing... Packaging..."
-        //sh 'mvn clean package'
-        sh "${mavenCMD} clean package"        
+  }
+
+  post {
+    always {
+      sh 'docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" || true'
     }
-    
-    stage('publish test reports'){
-        publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '/var/lib/jenkins/workspace/Capstone-Project-Live-Demo/target/surefire-reports', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: '', useWrapperFileDirectly: true])
+    success {
+      echo "✅ Pipeline completed successfully."
     }
-    
-    stage('Containerize the application'){
-        echo 'Creating Docker image'
-        sh "${dockerCMD} build -t shubhamkushwah123/insure-me:${tagName} ."
+    aborted {
+      echo "⚠️  Pipeline aborted (timeout or push error)."
     }
-    
-    stage('Pushing it ot the DockerHub'){
-        echo 'Pushing the docker image to DockerHub'
-        withCredentials([string(credentialsId: 'dock-password', variable: 'dockerHubPassword')]) {
-        sh "${dockerCMD} login -u shubhamkushwah123 -p ${dockerHubPassword}"
-        sh "${dockerCMD} push shubhamkushwah123/insure-me:${tagName}"
-            
-        }
-        
-    stage('Configure and Deploy to the test-server'){
-        ansiblePlaybook become: true, credentialsId: 'ansible-key', disableHostKeyChecking: true, installation: 'ansible', inventory: '/etc/ansible/hosts', playbook: 'ansible-playbook.yml'
+    failure {
+      echo "❌ Pipeline failed."
     }
-        
-        
-    }
+  }
 }
-
-
-
-
