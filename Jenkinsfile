@@ -1,10 +1,6 @@
 pipeline {
   agent any
 
-  triggers {
-    cron('H 0 * * *')
-  }
-
   environment {
     IMAGE_NAME = "generic-app"
     IMAGE_TAG  = "pruned-${BUILD_NUMBER}"
