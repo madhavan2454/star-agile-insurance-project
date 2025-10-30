@@ -81,7 +81,8 @@ pipeline {
 
             try {
             timeout(time: 2, unit: 'MINUTES') {
-              sh 'docker image prune -f || true'
+              sh 'docker image prune -a -f --filter "until=60m" '
+
             }
           } catch (err) {
             echo "Docker prune timed out or failed."
